@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quiz</title><link rel="stylesheet" href="style.css"></head><body><div class="w"><div id="app"></div></div>
+<script>
+const app=document.getElementById('app');
+const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const me=()=>{try{return JSON.parse(localStorage.getItem('quiz_me'))}catch(e){return null}};
+async function api(a,d){const r=await fetch('api.php?a='+a,d?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}:{});return r.json()}
+let st=null,msg='',banner='';
+async function load(){const m=me();if(!m)return start();st=await api('state&sid='+m.sid);draw()}
+function start(){
+  app.innerHTML=`<div class="c"><h2>Welcome</h2><p class="mu">Enter your name to start.</p><input id="nm" placeholder="Your name"><button class="p" id="go">Start</button></div>`;
+  document.getElementById('go').onclick=()=>{const n=document.getElementById('nm').value.trim();if(!n)return;
+    localStorage.setItem('quiz_me',JSON.stringify({name:n,sid:Math.random().toString(36).slice(2,12)+Date.now().toString(36)}));load()}}
+function draw(){
+  const m=me();if(!m)return start();
+  const head=`<div class="c"><div class="r"><div><b>${esc(m.name)}</b><div class="mu">${st.question?'Level '+st.level+' · ':''}Score ${st.score}</div></div><div class="n"><button id="out">Exit</button></div></div></div>`;
+  let body='';
+  if(st.empty)body=`<div class="c">No questions yet. Please come back later.</div>`;
+  else if(st.finished)body=`${banner?`<div class="al ok">${banner}</div>`:''}<div class="c"><div class="al ok">🏆 You finished all levels! Score: ${st.score}</div></div>`;
+  else{const q=st.question,p=Math.round(st.levelDone/st.levelTotal*100);
+    body=`${banner?`<div class="al ok">${banner}</div>`:''}<div class="c"><div class="bar"><i style="width:${p}%"></i></div><p class="mu">Question ${st.levelDone+1} of ${st.levelTotal} in this level</p><h3>${esc(q.text)}</h3>${q.options.map((o,i)=>`<button class="opt" data-i="${i}">${esc(o)}</button>`).join('')}${msg?`<div class="al no">${msg}</div>`:''}</div>`}
+  app.innerHTML=head+body;
+  document.getElementById('out').onclick=()=>{localStorage.removeItem('quiz_me');msg=banner='';start()};
+  app.querySelectorAll('.opt').forEach(b=>b.onclick=async()=>{
+    b.disabled=true;const r=await api('answer',{sid:m.sid,name:m.name,qid:st.question.id,choice:+b.dataset.i});
+    st=r.state;
+    if(r.stale){msg=banner='';return draw()}
+    if(r.ok){msg='';banner=r.levelComplete?'🎉 Level complete! Great job.':'';draw()}
+    else{msg='❌ Wrong answer. Please try again and answer correctly to continue.';draw();alert('Wrong answer! Please answer the question correctly to move on.')}
+  });
+}
+load();
+</script></body></html>

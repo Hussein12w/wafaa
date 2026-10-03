@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Admin</title><link rel="stylesheet" href="style.css"></head><body><div class="w"><div id="app"></div></div>
+<script>
+const app=document.getElementById('app');
+const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(a,d){const r=await fetch('api.php?a='+a,d?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)}:{});return{s:r.status,j:await r.json().catch(()=>({}))}}
+function login(){
+  app.innerHTML=`<div class="c"><h2>Admin login</h2><input id="pw" type="password" placeholder="Password"><button class="p" id="go">Login</button><div id="e" class="al no" style="display:none"></div></div>`;
+  const go=async()=>{const r=await api('login',{password:document.getElementById('pw').value});
+    if(r.j.ok)load();else{const e=document.getElementById('e');e.textContent=r.j.error||'Error';e.style.display='block'}};
+  document.getElementById('go').onclick=go;document.getElementById('pw').onkeydown=e=>e.key=='Enter'&&go()}
+async function load(){
+  const r=await api('admin_data');if(r.s==401)return login();const d=r.j,t=d.totals;
+  app.innerHTML=`<div class="c r"><h2 style="margin:0">Dashboard</h2><div class="n"><button id="lo">Logout</button></div></div>
+  <div class="c g"><div class="k"><b>${t.s}</b><span class="mu">Students</span></div><div class="k"><b>${t.a}</b><span class="mu">Attempts</span></div><div class="k"><b>${t.a?Math.round(t.c/t.a*100):0}%</b><span class="mu">Correct rate</span></div></div>
+  <div class="c"><h3>Add question</h3><label class="mu">Question</label><textarea id="qt" rows="2"></textarea>
+  <label class="mu">Answers (select the correct one)</label>
+  ${[0,1,2,3].map(i=>`<div class="r"><input class="n" type="radio" name="cr" value="${i}" ${i==0?'checked':''} style="width:auto;margin:0"><input class="oi" placeholder="Answer ${i+1}"></div>`).join('')}
+  <label class="mu">Level</label><input id="lv" type="number" min="1" value="1"><button class="p" id="add">Add question</button></div>
+  <div class="c"><h3>Students</h3><div class="sc"><table><tr><th>Name</th><th>Score (1st try)</th><th>Attempts</th><th>Accuracy</th><th>Level</th><th>Last active</th></tr>
+  ${d.students.map(s=>`<tr><td>${esc(s.name)}</td><td>${s.score}</td><td>${s.attempts}</td><td>${Math.round(s.correct/s.attempts*100)}%</td><td>${s.level||'-'}</td><td>${new Date(s.last*1000).toLocaleString()}</td></tr>`).join('')||'<tr><td colspan=6 class="mu">No results yet</td></tr>'}</table></div>
+  ${d.students.length?'<p><button class="d" id="rs">Reset all results</button></p>':''}</div>
+  <div class="c"><h3>Questions (${d.questions.length})</h3>
+  ${d.questions.map(q=>{const p=q.attempts?Math.round(q.correct_n/q.attempts*100):null;return`<div style="padding:10px 0;border-bottom:1px solid var(--bd)"><div class="r"><div><b>L${q.level}</b> · ${esc(q.text)}<div class="mu">✔ ${esc(q.options[q.correct])} · ${q.attempts} attempts${p!=null?' · '+p+'% correct':''}</div></div><div class="n"><button class="d" data-d="${q.id}">Delete</button></div></div>${p!=null?`<div class="bar" style="margin-top:6px"><i style="width:${p}%"></i></div>`:''}</div>`}).join('')||'<span class="mu">No questions yet</span>'}</div>`;
+  document.getElementById('lo').onclick=async()=>{await api('logout',{});login()};
+  document.getElementById('add').onclick=async()=>{
+    const r=await api('q_add',{text:document.getElementById('qt').value,options:[...app.querySelectorAll('.oi')].map(i=>i.value),correct:+app.querySelector('input[name=cr]:checked').value,level:+document.getElementById('lv').value||1});
+    if(r.j.ok)load();else alert(r.j.error||'Error');};
+  app.querySelectorAll('[data-d]').forEach(b=>b.onclick=async()=>{if(confirm('Delete this question and its results?')){await api('q_del',{id:+b.dataset.d});load()}});
+  const rs=document.getElementById('rs');if(rs)rs.onclick=async()=>{if(confirm('Delete ALL student results?')){await api('reset_results',{});load()}};
+}
+load();
+</script></body></html>
